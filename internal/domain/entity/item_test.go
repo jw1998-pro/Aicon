@@ -335,3 +335,154 @@ func TestGetValidCategories(t *testing.T) {
 	assert.Equal(t, expected, categories)
 	assert.Len(t, categories, 5)
 }
+
+func TestItem_UpdatePartial(t *testing.T) {
+	// 初期アイテムを作成
+	item, err := NewItem("初期アイテム", "時計", "初期ブランド", 100000, "2023-01-01")
+	require.NoError(t, err)
+
+	originalUpdatedAt := item.UpdatedAt
+	time.Sleep(1 * time.Millisecond) // UpdatedAt の変更を確認するため
+
+	tests := []struct {
+		name          string
+		newName       *string
+		newBrand      *string
+		newPrice      *int
+		wantErr       bool
+		expectedErr   string
+		expectedName  string
+		expectedBrand string
+		expectedPrice int
+	}{
+		{
+			name:          "正常系: 名前のみ更新",
+			newName:       stringPtr("更新された名前"),
+			newBrand:      nil,
+			newPrice:      nil,
+			wantErr:       false,
+			expectedName:  "更新された名前",
+			expectedBrand: "初期ブランド",
+			expectedPrice: 100000,
+		},
+		{
+			name:          "正常系: ブランドのみ更新",
+			newName:       nil,
+			newBrand:      stringPtr("更新されたブランド"),
+			newPrice:      nil,
+			wantErr:       false,
+			expectedName:  "初期アイテム",
+			expectedBrand: "更新されたブランド",
+			expectedPrice: 100000,
+		},
+		{
+			name:          "正常系: 購入価格のみ更新",
+			newName:       nil,
+			newBrand:      nil,
+			newPrice:      intPtr(200000),
+			wantErr:       false,
+			expectedName:  "初期アイテム",
+			expectedBrand: "初期ブランド",
+			expectedPrice: 200000,
+		},
+		{
+			name:          "正常系: 複数フィールド更新",
+			newName:       stringPtr("更新された名前"),
+			newBrand:      stringPtr("更新されたブランド"),
+			newPrice:      intPtr(200000),
+			wantErr:       false,
+			expectedName:  "更新された名前",
+			expectedBrand: "更新されたブランド",
+			expectedPrice: 200000,
+		},
+		{
+			name:          "正常系: 何も更新しない",
+			newName:       nil,
+			newBrand:      nil,
+			newPrice:      nil,
+			wantErr:       false,
+			expectedName:  "初期アイテム",
+			expectedBrand: "初期ブランド",
+			expectedPrice: 100000,
+		},
+		{
+			name:          "異常系: 空の名前",
+			newName:       stringPtr(""),
+			newBrand:      nil,
+			newPrice:      nil,
+			wantErr:       true,
+			expectedErr:   "name is required",
+		},
+		{
+			name:          "異常系: 空のブランド",
+			newName:       nil,
+			newBrand:      stringPtr(""),
+			newPrice:      nil,
+			wantErr:       true,
+			expectedErr:   "brand is required",
+		},
+		{
+			name:          "異常系: 負の購入価格",
+			newName:       nil,
+			newBrand:      nil,
+			newPrice:      intPtr(-1),
+			wantErr:       true,
+			expectedErr:   "purchase_price must be 0 or greater",
+		},
+		{
+			name:          "異常系: 名前が100文字超過",
+			newName:       stringPtr("ロレックス デイトナ 16520 18K イエローゴールド ブラック文字盤 自動巻き クロノグラフ メンズ 腕時計 1988年製 ヴィンテージ 希少 コレクション アイテム"),
+			newBrand:      nil,
+			newPrice:      nil,
+			wantErr:       true,
+			expectedErr:   "name must be 100 characters or less",
+		},
+		{
+			name:          "異常系: ブランドが100文字超過",
+			newName:       nil,
+			newBrand:      stringPtr("ROLEX SA Geneva Switzerland Official Authorized Dealer Store Premium Collection Limited Edition Special"),
+			newPrice:      nil,
+			wantErr:       true,
+			expectedErr:   "brand must be 100 characters or less",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// テスト用にアイテムをコピー
+			testItem := &Item{
+				ID:            item.ID,
+				Name:          item.Name,
+				Category:      item.Category,
+				Brand:         item.Brand,
+				PurchasePrice: item.PurchasePrice,
+				PurchaseDate:  item.PurchaseDate,
+				CreatedAt:     item.CreatedAt,
+				UpdatedAt:     originalUpdatedAt,
+			}
+
+			err := testItem.UpdatePartial(tt.newName, tt.newBrand, tt.newPrice)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedName, testItem.Name)
+			assert.Equal(t, tt.expectedBrand, testItem.Brand)
+			assert.Equal(t, tt.expectedPrice, testItem.PurchasePrice)
+			assert.True(t, testItem.UpdatedAt.After(originalUpdatedAt))
+		})
+	}
+}
+
+// ヘルパー関数
+func stringPtr(s string) *string {
+	return &s
+}
+
+func intPtr(i int) *int {
+	return &i
+}

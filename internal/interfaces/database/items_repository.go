@@ -108,6 +108,35 @@ func (r *ItemRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (r *ItemRepository) Update(ctx context.Context, id int64, item *entity.Item) (*entity.Item, error) {
+	query := `
+        UPDATE items 
+        SET name = ?, brand = ?, purchase_price = ?, updated_at = NOW()
+        WHERE id = ?
+    `
+
+	result, err := r.Execute(ctx, query,
+		item.Name,
+		item.Brand,
+		item.PurchasePrice,
+		id,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", domainErrors.ErrDatabaseError, err.Error())
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to get rows affected: %s", domainErrors.ErrDatabaseError, err.Error())
+	}
+
+	if rowsAffected == 0 {
+		return nil, domainErrors.ErrItemNotFound
+	}
+
+	return r.FindByID(ctx, id)
+}
+
 func (r *ItemRepository) GetSummaryByCategory(ctx context.Context) (map[string]int, error) {
 	query := `
         SELECT category, COUNT(*) as count
